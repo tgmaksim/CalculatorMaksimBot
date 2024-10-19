@@ -50,6 +50,24 @@ class UserState(StatesGroup):
     review = State('review')
 
 
+# Метод для добавления и изменения "знакомых"
+@dp.message(Command('new_acquaintance'))
+@security()
+async def _new_acquaintance(message: Message):
+    if await developer_command(message): return
+    if message.reply_to_message and message.reply_to_message.text:
+        id = int(message.reply_to_message.text.split('\n', 1)[0].replace("ID: ", ""))
+        name = message.text.split(maxsplit=1)[1]
+    else:
+        id, name = message.text.split(maxsplit=2)[1:]
+    if await db.execute("SELECT id FROM acquaintances WHERE id=?", (id,)):
+        await db.execute("UPDATE acquaintances SET name=? WHERE id=?", (name, id))
+        await message.answer("Данные знакомого изменены")
+    else:
+        await db.execute("INSERT INTO acquaintances VALUES(?, ?)", (id, name))
+        await message.answer("Добавлен новый знакомый!")
+
+
 # Метод для отправки сообщения от имени бота
 @dp.message(F.reply_to_message.__and__(F.chat.id == OWNER).__and__(F.reply_to_message.text.startswith("ID")))
 @security()
@@ -113,23 +131,6 @@ async def _stop(message: Message):
 async def _db(message: Message):
     if await developer_command(message): return
     await message.answer_document(FSInputFile(resources_path(db.db_path)))
-
-
-@dp.message(Command('new_acquaintance'))
-@security()
-async def _new_acquaintance(message: Message):
-    if await developer_command(message): return
-    if message.reply_to_message and message.reply_to_message.text:
-        id = int(message.reply_to_message.text.split('\n', 1)[0].replace("ID: ", ""))
-        name = message.text.split(maxsplit=1)[1]
-    else:
-        id, name = message.text.split(maxsplit=2)[1:]
-    if await db.execute("SELECT id FROM acquaintances WHERE id=?", (id,)):
-        await db.execute("UPDATE acquaintances SET name=? WHERE id=?", (name, id))
-        await message.answer("Данные знакомого изменены")
-    else:
-        await db.execute("INSERT INTO acquaintances VALUES(?, ?)", (id, name))
-        await message.answer("Добавлен новый знакомый!")
 
 
 @dp.message(Command('review'))
