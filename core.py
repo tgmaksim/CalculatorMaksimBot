@@ -10,6 +10,7 @@ html = "HTML"
 
 import sys_keys
 import aiosqlite
+import traceback
 from typing import Union
 from datetime import datetime, timedelta
 from aiogram.types import Message, CallbackQuery
@@ -33,9 +34,8 @@ def security(*arguments):
             try:
                 await fun(_object, **{kw: kwargs[kw] for kw in kwargs if kw in arguments})
             except Exception as e:
-                await _object.bot.send_message(
-                    OWNER, f"⚠️⚠️⚠️\nПроизошла ошибка {e.__class__.__name__} "
-                           f"в функции {fun.__module__}.{fun.__name__}: {e}")
+                exception = "".join(traceback.format_exception(e))
+                await _object.bot.send_message(OWNER, f"⚠️Ошибка⚠️\n\n{exception}")
 
         return new
 

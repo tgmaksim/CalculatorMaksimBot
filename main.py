@@ -47,7 +47,7 @@ class Data:
 # Класс нужен для определения состояния пользователя в данном боте,
 # например: пользователь должен отправить отзыв в следующем сообщении
 class UserState(StatesGroup):
-    review = State('review')
+    feedback = State('feedback')
 
 
 # Метод для добавления и изменения "знакомых"
@@ -98,14 +98,14 @@ async def _admin(message: Message):
 @security()
 async def _reload(message: Message):
     if await developer_command(message): return
-    await message.answer(f"*Перезапуск бота*", parse_mode=markdown)
-    print("Перезапуск бота")
     if sys.argv[1] == "release":
+        await message.answer("*Перезапуск бота*", parse_mode=markdown)
+        print("Перезапуск бота")
         await dp.stop_polling()
         asyncio.get_event_loop().stop()  # netangels после остановки фонового процесса автоматически запустит его
     else:
-        await dp.stop_polling()
-        asyncio.get_event_loop().stop()
+        await message.answer("В тестовом режиме перезапуск бота программно не предусмотрен!")
+        print("В тестовом режиме перезапуск бота программно не предусмотрен!")
 
 
 @dp.message(Command('stop'))
@@ -133,25 +133,25 @@ async def _db(message: Message):
     await message.answer_document(FSInputFile(resources_path(db.db_path)))
 
 
-@dp.message(Command('review'))
+@dp.message(Command('feedback'))
 @security('state')
-async def _start_review(message: Message, state: FSMContext):
+async def _start_feedback(message: Message, state: FSMContext):
     if await new_message(message): return
-    await state.set_state(UserState.review)
-    markup = IMarkup(inline_keyboard=[[IButton(text="❌", callback_data="stop_review")]])
+    await state.set_state(UserState.feedback)
+    markup = IMarkup(inline_keyboard=[[IButton(text="❌", callback_data="stop_feedback")]])
     await message.answer("Отправьте текст вопроса или предложения. Любое следующее сообщение будет считаться отзывом",
                          reply_markup=markup)
 
 
-@dp.message(UserState.review)
+@dp.message(UserState.feedback)
 @security('state')
-async def _review(message: Message, state: FSMContext):
-    if await new_message(message, False): return
+async def _feedback(message: Message, state: FSMContext):
+    if await new_message(message, forward=False): return
     await state.clear()
     acquaintance = await username_acquaintance(message)
     acquaintance = f"<b>Знакомый: {acquaintance}</b>\n" if acquaintance else ""
     await bot.send_photo(OWNER,
-                         photo=FSInputFile(resources_path("reviews.png")),
+                         photo=FSInputFile(resources_path("feedback.png")),
                          caption=f"ID: {message.chat.id}\n"
                                  f"{acquaintance}" +
                                  (f"USERNAME: @{message.from_user.username}\n" if message.from_user.username else "") +
@@ -163,10 +163,10 @@ async def _review(message: Message, state: FSMContext):
     await message.answer("Большое спасибо за отзыв!❤️❤️❤️")
 
 
-@dp.callback_query(F.data == "stop_review")
+@dp.callback_query(F.data == "sop_feedback")
 @security('state')
-async def _stop_review(callback_query: CallbackQuery, state: FSMContext):
-    if await new_callback_query(callback_query, "Стоп отправке отзыва"): return
+async def _stop_feedback(callback_query: CallbackQuery, state: FSMContext):
+    if await new_callback_query(callback_query): return
     await state.clear()
     await callback_query.message.edit_text("Отправка отзыва отменена")
 
@@ -188,11 +188,13 @@ async def _version(message: Message):
 @dp.callback_query(F.data == 'subscribe')
 @security()
 async def _check_subscribe(callback_query: CallbackQuery):
-    if await new_callback_query(callback_query, "Вроде подписан"): return
+    if await new_callback_query(callback_query, check_subscribe=False): return
     if (await bot.get_chat_member(channel, callback_query.message.chat.id)).status == 'left':
         await callback_query.answer("Вы не подписались на наш канал😢", True)
+        await callback_query.bot.send_message(OWNER, "Пользователь не подписался на канал")
     else:
         await callback_query.answer("Спасибо за подписку!❤️ Продолжайте пользоваться ботом", True)
+        await callback_query.bot.send_message(OWNER, "Пользователь подписался на канал. Ему предоставлен полный доступ")
 
 
 @dp.message(CommandStart())
@@ -217,7 +219,7 @@ async def _help(message: Message):
 @dp.callback_query(F.data == "help")
 @security()
 async def _help_button(callback_query: CallbackQuery):
-    if await new_callback_query(callback_query, "Помогите"): return
+    if await new_callback_query(callback_query): return
     await callback_query.message.edit_reply_markup()
     await help(callback_query.message)
 
@@ -320,7 +322,7 @@ async def _my_functions(message: Message):
 @dp.callback_query()
 @security()
 async def _other_callback_query(callback_query: CallbackQuery):
-    await new_callback_query(callback_query, "Неизвестно...")
+    await new_callback_query(callback_query)
 
 
 @dp.message()
@@ -378,11 +380,12 @@ async def subscribe_to_channel(message: Message):
                              [IButton(text="Подписался", callback_data="subscribe")]])
         await message.answer("Бот работает только с подписчиками моего канала. "
                              "Подпишитесь и получите полный доступ к боту", reply_markup=markup)
+        await message.bot.send_message(OWNER, "Пользователь не подписан на наш канал, доступ ограничен!")
         return False
     return True
 
 
-async def new_message(message: Message, forward: bool = True) -> bool:
+async def new_message(message: Message, /, forward: bool = True) -> bool:
     if message.content_type == "text":
         content = message.text
     elif message.content_type == "web_app_data":
@@ -459,7 +462,7 @@ async def new_message(message: Message, forward: bool = True) -> bool:
     return not await subscribe_to_channel(message)
 
 
-async def new_callback_query(callback_query: CallbackQuery, comment: str) -> bool:
+async def new_callback_query(callback_query: CallbackQuery, /, check_subscribe: bool = True) -> bool:
     message = callback_query.message
     id = str(message.chat.id)
     username = callback_query.from_user.username
@@ -469,7 +472,6 @@ async def new_callback_query(callback_query: CallbackQuery, comment: str) -> boo
     date = str(omsk_time(message.date))
     acquaintance = await username_acquaintance(message)
     acquaintance = f"<b>Знакомый: {acquaintance}</b>\n" if acquaintance else ""
-    comment = f"Комментарий: {comment}\n" if comment else ""
 
     await db.execute("INSERT INTO callbacks_query VALUES (?, ?, ?, ?, ?, ?)",
                      (id, username, first_name, last_name, callback_data, date))
@@ -483,10 +485,12 @@ async def new_callback_query(callback_query: CallbackQuery, comment: str) -> boo
                  f"Имя: {first_name}\n" +
                  (f"Фамилия: {last_name}\n" if last_name else "") +
                  f"CALLBACK_DATA: {callback_data}\n"
-                 f"{comment}"
                  f"Время: {date}",
             parse_mode=html)
 
+    if check_subscribe and not await subscribe_to_channel(message):
+        await callback_query.message.edit_reply_markup()
+        return True
     return False
 
 
