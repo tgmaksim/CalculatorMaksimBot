@@ -225,7 +225,7 @@ async def _help_button(callback_query: CallbackQuery):
 
 
 async def help(message: Message):
-    await message.answer("/review - оставить отзыв или предложение\n"
+    await message.answer("/feedback - оставить отзыв или предложение\n"
                          "/my_functions - функции, которые можно использовать в выражениях для подсчета\n"
                          "/trigonometric - таблица тригонометрических функций\n"
                          f"<a href='{SITE}'>tgmaksim.ru</a>", parse_mode=html)
