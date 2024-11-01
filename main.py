@@ -10,6 +10,7 @@ from core import (
     SITE,
     OWNER,
     channel,
+    time_now,
     security,
     markdown,
     subscribe,
@@ -373,14 +374,14 @@ async def developer_command(message: Message) -> bool:
     return message.chat.id != OWNER
 
 
-async def subscribe_to_channel(message: Message):
-    if (await bot.get_chat_member(channel, message.from_user.id)).status == 'left' and not message.text.startswith('/start'):
+async def subscribe_to_channel(id: int, text: str = ""):
+    if (await bot.get_chat_member(channel, id)).status == 'left' and not text.startswith('/start'):
         markup = IMarkup(
             inline_keyboard=[[IButton(text="Подписаться на канал", url=subscribe)],
                              [IButton(text="Подписался", callback_data="subscribe")]])
-        await message.answer("Бот работает только с подписчиками моего канала. "
-                             "Подпишитесь и получите полный доступ к боту", reply_markup=markup)
-        await message.bot.send_message(OWNER, "Пользователь не подписан на наш канал, доступ ограничен!")
+        await bot.send_message(id, "Бот работает только с подписчиками моего канала. "
+                                   "Подпишитесь и получите полный доступ к боту", reply_markup=markup)
+        await bot.send_message(OWNER, "Пользователь не подписан на наш канал, доступ ограничен!")
         return False
     return True
 
@@ -459,18 +460,17 @@ async def new_message(message: Message, /, forward: bool = True) -> bool:
         await message.forward(OWNER)
     await new_user(message)
 
-    return not await subscribe_to_channel(message)
+    return not await subscribe_to_channel(message.chat.id, message.text)
 
 
 async def new_callback_query(callback_query: CallbackQuery, /, check_subscribe: bool = True) -> bool:
-    message = callback_query.message
-    id = str(message.chat.id)
+    id = str(callback_query.message.chat.id)
     username = callback_query.from_user.username
     first_name = callback_query.from_user.first_name
     last_name = callback_query.from_user.last_name
     callback_data = callback_query.data
-    date = str(omsk_time(message.date))
-    acquaintance = await username_acquaintance(message)
+    date = str(time_now())
+    acquaintance = await username_acquaintance(callback_query.message)
     acquaintance = f"<b>Знакомый: {acquaintance}</b>\n" if acquaintance else ""
 
     await db.execute("INSERT INTO callbacks_query VALUES (?, ?, ?, ?, ?, ?)",
@@ -488,7 +488,7 @@ async def new_callback_query(callback_query: CallbackQuery, /, check_subscribe: 
                  f"Время: {date}",
             parse_mode=html)
 
-    if check_subscribe and not await subscribe_to_channel(message):
+    if check_subscribe and not await subscribe_to_channel(callback_query.from_user.id):
         await callback_query.message.edit_reply_markup()
         return True
     return False
