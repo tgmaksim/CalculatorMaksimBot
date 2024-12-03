@@ -2,7 +2,7 @@ OWNER = 5128609241
 NAME = "CalculatorMaksimBot"
 SITE = "https://tgmaksim.ru/проекты/калькулятор"
 subscribe = "https://t.me/+AypnXcgxrHE3YTk6"
-channel = "@MaksimMyBots"
+channel = "@tgmaksim_ru"
 
 markdown = "Markdown"
 html = "HTML"
